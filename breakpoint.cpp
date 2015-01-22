@@ -198,7 +198,7 @@ void HWBreakpoint::SetForThreads()
 		{
 			CriticalSection::Scope lock(m_cs);
 			{
-				m_pendingThread.tid = GetCurrentThreadId();
+				m_pendingThread.tid = te32.th32ThreadID;
 				m_pendingThread.enable = true;
 				SetEvent(m_workerSignal);
 				WaitForSingleObject(m_workerDone, INFINITE);
