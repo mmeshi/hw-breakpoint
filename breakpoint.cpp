@@ -122,20 +122,22 @@ void HWBreakpoint::BuildTrampoline()
 
 	*(unsigned char*)	&m_trampoline[0] = 0x51;				// push rcx
 	*(unsigned char*)	&m_trampoline[1] = 0x52;				// push rdx
-	*(unsigned short*)	&m_trampoline[2] = 0x15FF;				// call
-	*(DWORD*)			&m_trampoline[4] = 0x00000017;			//			ThreadDeutor
-	*(unsigned char*)	&m_trampoline[8] = 0x5A;				// pop rdx
-	*(unsigned char*)	&m_trampoline[9] = 0x59;				// pop rcx
+	*(unsigned char*)	&m_trampoline[2] = 0x52;				// push rdx
+	*(unsigned short*)	&m_trampoline[3] = 0x15FF;				// call
+	*(DWORD*)			&m_trampoline[5] = 0x00000018;			//			ThreadDeutor
+	*(unsigned char*)	&m_trampoline[9] = 0x5A;				// pop rdx
+	*(unsigned char*)	&m_trampoline[10] = 0x5A;				// pop rdx
+	*(unsigned char*)	&m_trampoline[11] = 0x59;				// pop rcx
 
-	*(DWORD*)			&m_trampoline[10] = 0x48EC8348;			// sub rsp, 0x48	(2 instruction from prologe of target hook)
-	*(unsigned short*)	&m_trampoline[14] = 0x8B4C;				// mov r9,
-	*(unsigned char*)	&m_trampoline[16] = 0xC9;				//			rcx
-	*(short*)			&m_trampoline[17] = 0x25FF;				// jmp
-	*(DWORD*)			&m_trampoline[19] = 0x00000000;
+	*(DWORD*)			&m_trampoline[12] = 0x48EC8348;			// sub rsp, 0x48	(2 instruction from prologe of target hook)
+	*(unsigned short*)	&m_trampoline[16] = 0x8B4C;				// mov r9,
+	*(unsigned char*)	&m_trampoline[18] = 0xC9;				//			rcx
+	*(short*)			&m_trampoline[19] = 0x25FF;				// jmp
+	*(DWORD*)			&m_trampoline[21] = 0x00000000;			//		rtlThreadStartAddress + 7
 
 	// address data for call & jump
-	*(DWORD64*)			&m_trampoline[23] = (DWORD64)((unsigned char*)rtlThreadStartAddress + 7);
-	*(DWORD64*)			&m_trampoline[31] = (DWORD64)ThreadDeutor;
+	*(DWORD64*)			&m_trampoline[25] = (DWORD64)((unsigned char*)rtlThreadStartAddress + 7);
+	*(DWORD64*)			&m_trampoline[33] = (DWORD64)ThreadDeutor;
 }
 
 void HWBreakpoint::ToggleThreadHook(bool set)
