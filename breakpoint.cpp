@@ -32,6 +32,9 @@ HWBreakpoint::~HWBreakpoint()
 	CloseHandle(m_workerDone);
 	CloseHandle(m_workerSignal);
 	CloseHandle(m_workerThread);
+
+	if (m_trampoline)
+		VirtualFree(m_trampoline, 0, MEM_RELEASE);
 }
 
 bool HWBreakpoint::Set(void* address, int len, Condition when)
