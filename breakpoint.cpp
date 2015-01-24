@@ -91,15 +91,15 @@ void HWBreakpoint::ToggleThread(DWORD tid, bool enableBP)
 
 void HWBreakpoint::BuildTrampoline()
 {
-	DWORD64* rtlThreadStartAddress = (DWORD64*)GetProcAddress(GetModuleHandle("ntdll.dll"), "RtlUserThreadStart");
+	ULONG_PTR* rtlThreadStartAddress = (ULONG_PTR*)GetProcAddress(GetModuleHandle("ntdll.dll"), "RtlUserThreadStart");
 
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
-	DWORD64 gMinAddress = (DWORD64)si.lpMinimumApplicationAddress;
-	DWORD64 gMaxAddress = (DWORD64)si.lpMaximumApplicationAddress;
-	DWORD64 minAddr = std::max<DWORD64>(gMinAddress, (DWORD64)rtlThreadStartAddress - 0x20000000);
-	DWORD64 maxAddr = std::min<DWORD64>(gMaxAddress, (DWORD64)rtlThreadStartAddress + 0x20000000);
+	ULONG_PTR gMinAddress = (ULONG_PTR)si.lpMinimumApplicationAddress;
+	ULONG_PTR gMaxAddress = (ULONG_PTR)si.lpMaximumApplicationAddress;
+	ULONG_PTR minAddr = std::max<ULONG_PTR>(gMinAddress, (ULONG_PTR)rtlThreadStartAddress - 0x20000000);
+	ULONG_PTR maxAddr = std::min<ULONG_PTR>(gMaxAddress, (ULONG_PTR)rtlThreadStartAddress + 0x20000000);
 
 	const size_t BlockSize = 0x10000;
 	intptr_t min = minAddr / BlockSize;
@@ -145,23 +145,26 @@ void HWBreakpoint::BuildTrampoline()
 
 void HWBreakpoint::ToggleThreadHook(bool set)
 {
+	//TODO: replacing opcode in system dll may be dangeruos because another thread may invokes and run throw the code while we still replacing it...
+	//		the right solution is to do it from another process which first suspend the target process, inject the changes to his memory, and resume it.
+
 	DWORD oldProtect;
-	DWORD64* rtlThreadStartAddress = (DWORD64*)GetProcAddress(GetModuleHandle("ntdll.dll"), "RtlUserThreadStart");
+	ULONG_PTR* rtlThreadStartAddress = (ULONG_PTR*)GetProcAddress(GetModuleHandle("ntdll.dll"), "RtlUserThreadStart");
+
 	if (m_trampoline && set)
 	{
 		VirtualProtect(rtlThreadStartAddress, 5, PAGE_EXECUTE_READWRITE, &oldProtect);
 		unsigned char* b = (unsigned char*)rtlThreadStartAddress;
 
-		// TODO: replace with one atomic operation
-		b[0] = 0xE9;
-		*(DWORD*)&b[1] = (DWORD)m_trampoline - (DWORD)b - 5;
+		((unsigned char*)rtlThreadStartAddress)[0] = 0xE9;
+		*(DWORD*)&(((unsigned char*)rtlThreadStartAddress)[1]) = (DWORD)m_trampoline - (DWORD)rtlThreadStartAddress - 5;
 
 		VirtualProtect(rtlThreadStartAddress, 5, oldProtect, &oldProtect);
 	}
-	else if (*rtlThreadStartAddress != *(DWORD64*)m_originalOpcode)
+	else if (*rtlThreadStartAddress != *(ULONG_PTR*)m_originalOpcode)
 	{
 		VirtualProtect(rtlThreadStartAddress, 5, PAGE_EXECUTE_READWRITE, &oldProtect);
-		*rtlThreadStartAddress = *(DWORD64*)m_originalOpcode;
+		*rtlThreadStartAddress = *(ULONG_PTR*)m_originalOpcode;
 		VirtualProtect(rtlThreadStartAddress, 5, oldProtect, &oldProtect);
 	}
 }

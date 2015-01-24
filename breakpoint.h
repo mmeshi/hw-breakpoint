@@ -54,7 +54,7 @@ private:
 
 	static DWORD WINAPI WorkerThreadProc(LPVOID lpParameter);
 
-	inline void SetBits(unsigned __int64& dw, int lowBit, int bits, int newValue)
+	inline void SetBits(ULONG_PTR& dw, int lowBit, int bits, int newValue)
 	{
 		int mask = (1 << bits) - 1; // e.g. 1 becomes 0001, 2 becomes 0011, 3 becomes 0111
 
