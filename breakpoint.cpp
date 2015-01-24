@@ -4,13 +4,14 @@
 #include <algorithm>
 #include <iostream>
 
-const char HWBreakpoint::m_originalOpcode[8] = { 0x48, 0x83, 0xEC, 0x48, 0x4C, 0x8B, 0xC9, 0x48 };
 HWBreakpoint::HWBreakpoint()
 {
 	ZeroMemory(m_address, sizeof(m_address));
 	m_countActive = 0;
 
 	BuildTrampoline();
+	if (!m_trampoline)
+		std::cout << "error: failed to build hook function" << std::endl;
 
 	m_workerSignal = CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_workerDone = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -96,12 +97,13 @@ void HWBreakpoint::BuildTrampoline()
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
 
+#ifdef _WIN64
 	ULONG_PTR gMinAddress = (ULONG_PTR)si.lpMinimumApplicationAddress;
 	ULONG_PTR gMaxAddress = (ULONG_PTR)si.lpMaximumApplicationAddress;
 	ULONG_PTR minAddr = std::max<ULONG_PTR>(gMinAddress, (ULONG_PTR)rtlThreadStartAddress - 0x20000000);
 	ULONG_PTR maxAddr = std::min<ULONG_PTR>(gMaxAddress, (ULONG_PTR)rtlThreadStartAddress + 0x20000000);
 
-	const size_t BlockSize = 0x10000;
+	const size_t BlockSize = si.dwPageSize;
 	intptr_t min = minAddr / BlockSize;
 	intptr_t max = maxAddr / BlockSize;
 	int rel = 0;
@@ -123,6 +125,9 @@ void HWBreakpoint::BuildTrampoline()
 	if (!m_trampoline)
 		return;
 
+	// save prologe hooked function
+	*(ULONG_PTR*)m_orgOpcode = *rtlThreadStartAddress;
+
 	*(unsigned char*)	&m_trampoline[0] = 0x51;				// push rcx
 	*(unsigned char*)	&m_trampoline[1] = 0x52;				// push rdx
 	*(unsigned char*)	&m_trampoline[2] = 0x52;				// push rdx
@@ -141,30 +146,65 @@ void HWBreakpoint::BuildTrampoline()
 	// address data for call & jump
 	*(DWORD64*)			&m_trampoline[25] = (DWORD64)((unsigned char*)rtlThreadStartAddress + 7);
 	*(DWORD64*)			&m_trampoline[33] = (DWORD64)ThreadDeutor;
+
+#else
+
+	if (((unsigned char*)rtlThreadStartAddress)[0] != 0x89 || ((unsigned char*)rtlThreadStartAddress)[4] != 0x89 || ((unsigned char*)rtlThreadStartAddress)[8] != 0xE9)
+		return;
+
+	m_trampoline = (unsigned char*)VirtualAlloc(NULL, si.dwPageSize, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+	if (!m_trampoline)
+		return;
+
+	// save prologe hooked function
+	*(ULONG_PTR*)m_orgOpcode = *rtlThreadStartAddress;
+	*((ULONG_PTR*)(m_orgOpcode) + 1) = *(rtlThreadStartAddress + 1);
+
+	*(unsigned char*) &m_trampoline[0] = 0x50;														// push eax
+	*(unsigned char*) &m_trampoline[1] = 0x53;														// push ebx
+	*(unsigned char*) &m_trampoline[2] = 0xE8;														// call
+	*(unsigned long*) &m_trampoline[3] = (ULONG_PTR)ThreadDeutor - (ULONG_PTR)m_trampoline - 7;		//		ThreadDeutor
+	*(unsigned char*) &m_trampoline[7] = 0x5B;														// pop ebx
+	*(unsigned char*) &m_trampoline[8] = 0x58;														// pop eax
+
+	// execute 2 instruction from prologe of hooked function
+	*(unsigned long*)&m_trampoline[9] = *rtlThreadStartAddress;										
+	*(unsigned long*)&m_trampoline[13] = *(rtlThreadStartAddress + 1);
+	*(unsigned char*)&m_trampoline[17] = 0xE9;														// jmp
+	*(unsigned long*)&m_trampoline[18] = (ULONG_PTR)rtlThreadStartAddress - (ULONG_PTR)m_trampoline - 14; //  rtlThreadStartAddress + 8
+
+
+#endif
 }
 
 void HWBreakpoint::ToggleThreadHook(bool set)
 {
-	//TODO: replacing opcode in system dll may be dangeruos because another thread may invokes and run throw the code while we still replacing it...
+	if (!m_trampoline)
+		return;
+
+	//TODO: replacing opcode in system dll might be dangeruos because another thread may invokes and run throw the code while we still replacing it.
 	//		the right solution is to do it from another process which first suspend the target process, inject the changes to his memory, and resume it.
 
 	DWORD oldProtect;
 	ULONG_PTR* rtlThreadStartAddress = (ULONG_PTR*)GetProcAddress(GetModuleHandle("ntdll.dll"), "RtlUserThreadStart");
 
-	if (m_trampoline && set)
+	if (set)
 	{
 		VirtualProtect(rtlThreadStartAddress, 5, PAGE_EXECUTE_READWRITE, &oldProtect);
-		unsigned char* b = (unsigned char*)rtlThreadStartAddress;
-
 		((unsigned char*)rtlThreadStartAddress)[0] = 0xE9;
 		*(DWORD*)&(((unsigned char*)rtlThreadStartAddress)[1]) = (DWORD)m_trampoline - (DWORD)rtlThreadStartAddress - 5;
 
 		VirtualProtect(rtlThreadStartAddress, 5, oldProtect, &oldProtect);
 	}
-	else if (*rtlThreadStartAddress != *(ULONG_PTR*)m_originalOpcode)
+	else if (*rtlThreadStartAddress != *(ULONG_PTR*)m_orgOpcode)
 	{
 		VirtualProtect(rtlThreadStartAddress, 5, PAGE_EXECUTE_READWRITE, &oldProtect);
-		*rtlThreadStartAddress = *(ULONG_PTR*)m_originalOpcode;
+#ifdef _WIN64
+		*rtlThreadStartAddress = *(ULONG_PTR*)m_orgOpcode;
+#else
+		*rtlThreadStartAddress = *(ULONG_PTR*)m_orgOpcode;
+		*(rtlThreadStartAddress+1) = *((ULONG_PTR*)(m_orgOpcode)+1);
+#endif
 		VirtualProtect(rtlThreadStartAddress, 5, oldProtect, &oldProtect);
 	}
 }

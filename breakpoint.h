@@ -80,5 +80,5 @@ private:
 
 	// hook trampoline
 	unsigned char* m_trampoline;
-	static const char m_originalOpcode[];
+	unsigned char m_orgOpcode[8];
 };
