@@ -98,6 +98,18 @@ void HWBreakpoint::BuildTrampoline()
 	GetSystemInfo(&si);
 
 #ifdef _WIN64
+
+	// Explanation: 
+	// the traditional way is to overwite first instructions in the hook target with
+	// an relative uncontitional jmp. this works well in x86 becuase that relative jmp takes
+	// only 5 bytes of opcode, and its cover all memory space. things is differente in x64 mode, 
+	// to cover all memory space, one need to use absolute jmp which cost 14 bytes in opcode. this is too
+	// long to overwite for very small functions. the solution is to use two steps: the overwite instruction 
+	// is a 5 byte relative jmp that jump to a trampoline function, allocated not far from 2GB relative to the
+	// target hook. and in the trampoline we have space to specify absolute jump to the real hook function.
+	// more details in: http://www.codeproject.com/Articles/44326/MinHook-The-Minimalistic-x-x-API-Hooking-Libra
+
+	// search for avalible memory in 2GB boundary to host the tampoline function
 	ULONG_PTR gMinAddress = (ULONG_PTR)si.lpMinimumApplicationAddress;
 	ULONG_PTR gMaxAddress = (ULONG_PTR)si.lpMaximumApplicationAddress;
 	ULONG_PTR minAddr = std::max<ULONG_PTR>(gMinAddress, (ULONG_PTR)rtlThreadStartAddress - 0x20000000);
