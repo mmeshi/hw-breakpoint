@@ -199,12 +199,7 @@ void HWBreakpoint::ToggleThreadHook(bool set)
 	else if (*rtlThreadStartAddress != *(ULONG_PTR*)m_orgOpcode)
 	{
 		VirtualProtect(rtlThreadStartAddress, 5, PAGE_EXECUTE_READWRITE, &oldProtect);
-#ifdef _WIN64
-		*rtlThreadStartAddress = *(ULONG_PTR*)m_orgOpcode;
-#else
-		*rtlThreadStartAddress = *(ULONG_PTR*)m_orgOpcode;
-		*(rtlThreadStartAddress+1) = *((ULONG_PTR*)(m_orgOpcode)+1);
-#endif
+		*(ULONG64*)rtlThreadStartAddress = *(ULONG64*)m_orgOpcode;
 		VirtualProtect(rtlThreadStartAddress, 5, oldProtect, &oldProtect);
 	}
 }
