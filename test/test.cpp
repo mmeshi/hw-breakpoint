@@ -61,7 +61,11 @@ int main()
 
     	// wait for thread completion
 	::WaitForSingleObject(hTrd, INFINITE);
+
+        // cleanup and reset events
 	::CloseHandle(hTrd);
+	::ResetEvent(g_hEvent1);
+	::ResetEvent(g_hEvent2);
 
 	std::cout << std::endl << std::endl << "test 2: new thread after setting the BP" << std::endl;
 	std::cout << "=============================================================================" << std::endl;
