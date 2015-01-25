@@ -138,7 +138,7 @@ void HWBreakpoint::BuildTrampoline()
 		return;
 
 	// save prologe hooked function
-	*(ULONG_PTR*)m_orgOpcode = *rtlThreadStartAddress;
+	*(ULONG64*)m_orgOpcode = *(ULONG64*)rtlThreadStartAddress;
 
 	*(unsigned char*)	&m_trampoline[0] = 0x51;				// push rcx
 	*(unsigned char*)	&m_trampoline[1] = 0x52;				// push rdx
@@ -169,8 +169,7 @@ void HWBreakpoint::BuildTrampoline()
 		return;
 
 	// save prologe hooked function
-	*(ULONG_PTR*)m_orgOpcode = *rtlThreadStartAddress;
-	*((ULONG_PTR*)(m_orgOpcode) + 1) = *(rtlThreadStartAddress + 1);
+	*(ULONG64*)m_orgOpcode = *(ULONG64*)rtlThreadStartAddress;
 
 	*(unsigned char*) &m_trampoline[0] = 0x50;														// push eax
 	*(unsigned char*) &m_trampoline[1] = 0x53;														// push ebx
