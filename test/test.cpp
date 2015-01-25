@@ -11,7 +11,7 @@ void tryWrite()
 	std::cout << "thread " << std::hex << ::GetCurrentThreadId() << " trying to write...";
 
 	__try 
-    {
+    	{
 		g_val = 1;
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
@@ -23,10 +23,10 @@ void tryWrite()
 
 DWORD WINAPI ThreadWriteFunc()
 {
-    // inform main thread to set breakpoint
+    	// inform main thread to set breakpoint
 	::SetEvent(g_hEvent2);
 
-    // wait for main thread to finish setting the BP
+    	// wait for main thread to finish setting the BP
 	::WaitForSingleObject(g_hEvent1, INFINITE);
 
 	tryWrite();
@@ -42,24 +42,24 @@ int main()
 	g_hEvent1 = ::CreateEvent(NULL, TRUE, FALSE, NULL);
 	g_hEvent2 = ::CreateEvent(NULL, TRUE, FALSE, NULL);
 
-    // multi-thread testing:
+    	// multi-thread testing:
 	std::cout << std::endl << std::endl << "test 1: existing thread before the BP has setting" << std::endl;
 	std::cout << "=============================================================================" << std::endl;
 	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, NULL, 0, &threadId);
 	
-    // wait for new thread creation
-    ::WaitForSingleObject(g_hEvent2, INFINITE);
+    	// wait for new thread creation
+    	::WaitForSingleObject(g_hEvent2, INFINITE);
 
-    // print out the new thread id
+    	// print out the new thread id
 	std::cout << "thread " << std::hex << threadId << " has created" << std::endl;
 
-    // set the BP
+    	// set the BP
 	HWBreakpoint::Set(&g_val, sizeof(int), HWBreakpoint::Write);
 
-    // signal the thread to continue exection (try to write)
+    	// signal the thread to continue exection (try to write)
 	::SetEvent(g_hEvent1);
 
-    // wait for thread completion
+    	// wait for thread completion
 	::WaitForSingleObject(hTrd, INFINITE);
 	::CloseHandle(hTrd);
 
@@ -67,22 +67,22 @@ int main()
 	std::cout << "=============================================================================" << std::endl;
 	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, NULL, 0, &threadId);
 
-    // wait for new thread creation
+    	// wait for new thread creation
 	::WaitForSingleObject(g_hEvent2, INFINITE);
 
-    // print out the new thread id
+    	// print out the new thread id
 	std::cout << "thread " << std::hex << threadId << " has created" << std::endl;
 
-    // signal the thread to continue execution
+    	// signal the thread to continue execution
 	::SetEvent(g_hEvent1);
 
-    // wait for thread completion
+    	// wait for thread completion
 	::WaitForSingleObject(hTrd, INFINITE);
 	::CloseHandle(hTrd);
 
-    // reset the BP
+    	// reset the BP
 	HWBreakpoint::Clear(&g_val);
 
-    // wait for user input
+    	// wait for user input
 	std::cin.ignore();
 }
