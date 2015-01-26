@@ -101,8 +101,8 @@ void HWBreakpoint::BuildTrampoline()
 
 	// Explanation: 
 	// the traditional way is to overwite first instructions in the hook target with
-	// an relative uncontitional jmp. this works well in x86 becuase that relative jmp takes
-	// only 5 bytes of opcode, and its cover all memory space. things is differente in x64 mode, 
+	// an relative uncontitional jmp. this works well in x86 when a relative jmp takes
+	// only 5 bytes of opcode and is capable to cover all memory space. things is differente in x64 mode, 
 	// to cover all memory space, one need to use absolute jmp which cost 14 bytes in opcode. this is too
 	// long to overwite for very small functions. the solution is to use two steps: the overwite instruction 
 	// is a 5 byte relative jmp that jump to a trampoline function, allocated not far from 2GB relative to the
@@ -271,14 +271,16 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 	if (!hThread)
 		return;
 
-	CONTEXT cxt;
-	cxt.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+	do
+	{
+		CONTEXT cxt;
+		cxt.ContextFlags = CONTEXT_DEBUG_REGISTERS;
 
-	if (SuspendThread(hThread) == -1)
-		goto Final;
+		if (SuspendThread(hThread) == -1)
+			break;
 
-	if (!GetThreadContext(hThread, &cxt))
-		goto Final;
+		if (!GetThreadContext(hThread, &cxt))
+			break;
 
 	for (int index = 0; index < 4; ++index)
 	{
@@ -300,15 +302,16 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 		}
 	}
 
-	if (!SetThreadContext(hThread, &cxt))
-		goto Final;
+		if (!SetThreadContext(hThread, &cxt))
+			break;
 
-	if (ResumeThread(hThread) == -1)
-		goto Final;
+		if (ResumeThread(hThread) == -1)
+			break;
 
 	std::cout << "Set BP for Thread: " << tid << std::endl;
 
-Final:
+	} while (false);
+
 	CloseHandle(hThread);
 }
 
