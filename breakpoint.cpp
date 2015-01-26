@@ -163,6 +163,11 @@ void HWBreakpoint::BuildTrampoline()
 	// save prologe hooked function
 	*(ULONG64*)m_orgOpcode = *(ULONG64*)rtlThreadStartAddress;
 
+	// the second illogical push rdx came here cause that i find that release build generate ThreadDeutor function
+	// that starts with "mov qword ptr [rsp+8], rcx", which overwite rdx (which hold the thread parameter). so my 
+	// workaround solution is to push rdx twice. 
+	// But someone has an idea why the compiler tend to overwite outside from the frame stack? 
+	// is it a part of x64 calling conversion?
 	*(unsigned char*)	&m_trampoline[0] = 0x51;				// push rcx
 	*(unsigned char*)	&m_trampoline[1] = 0x52;				// push rdx
 	*(unsigned char*)	&m_trampoline[2] = 0x52;				// push rdx
