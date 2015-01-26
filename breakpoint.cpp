@@ -210,7 +210,7 @@ void HWBreakpoint::BuildTrampoline()
 	*(unsigned long*)&m_trampoline[9] = *rtlThreadStartAddress;	
 	*(unsigned long*)&m_trampoline[13] = *(rtlThreadStartAddress + 1);
 	*(unsigned char*)&m_trampoline[17] = 0xE9;								// jmp
-	*(unsigned long*)&m_trampoline[18] = (ULONG_PTR)rtlThreadStartAddress - (ULONG_PTR)m_trampoline - 14	//     rtlThreadStartAddress + 8
+	*(unsigned long*)&m_trampoline[18] = (ULONG_PTR)rtlThreadStartAddress - (ULONG_PTR)m_trampoline - 14;	//     rtlThreadStartAddress + 8
 
 
 #endif
