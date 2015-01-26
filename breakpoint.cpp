@@ -199,18 +199,18 @@ void HWBreakpoint::BuildTrampoline()
 	// save prologe hooked function
 	*(ULONG64*)m_orgOpcode = *(ULONG64*)rtlThreadStartAddress;
 
-	*(unsigned char*) &m_trampoline[0] = 0x50;														// push eax
-	*(unsigned char*) &m_trampoline[1] = 0x53;														// push ebx
-	*(unsigned char*) &m_trampoline[2] = 0xE8;														// call
-	*(unsigned long*) &m_trampoline[3] = (ULONG_PTR)ThreadDeutor - (ULONG_PTR)m_trampoline - 7;		//		ThreadDeutor
-	*(unsigned char*) &m_trampoline[7] = 0x5B;														// pop ebx
-	*(unsigned char*) &m_trampoline[8] = 0x58;														// pop eax
+	*(unsigned char*) &m_trampoline[0] = 0x50;							// push eax
+	*(unsigned char*) &m_trampoline[1] = 0x53;							// push ebx
+	*(unsigned char*) &m_trampoline[2] = 0xE8;							// call
+	*(unsigned long*) &m_trampoline[3] = (ULONG_PTR)ThreadDeutor - (ULONG_PTR)m_trampoline - 7;	//	ThreadDeutor
+	*(unsigned char*) &m_trampoline[7] = 0x5B;							// pop ebx
+	*(unsigned char*) &m_trampoline[8] = 0x58;							// pop eax
 
 	// execute 2 instruction from prologe of hooked function
-	*(unsigned long*)&m_trampoline[9] = *rtlThreadStartAddress;										
+	*(unsigned long*)&m_trampoline[9] = *rtlThreadStartAddress;	
 	*(unsigned long*)&m_trampoline[13] = *(rtlThreadStartAddress + 1);
-	*(unsigned char*)&m_trampoline[17] = 0xE9;														// jmp
-	*(unsigned long*)&m_trampoline[18] = (ULONG_PTR)rtlThreadStartAddress - (ULONG_PTR)m_trampoline - 14; //  rtlThreadStartAddress + 8
+	*(unsigned char*)&m_trampoline[17] = 0xE9;								// jmp
+	*(unsigned long*)&m_trampoline[18] = (ULONG_PTR)rtlThreadStartAddress - (ULONG_PTR)m_trampoline - 14	//     rtlThreadStartAddress + 8
 
 
 #endif
@@ -248,12 +248,11 @@ void HWBreakpoint::ThreadDeutor()
 	HWBreakpoint& bp = GetInstance();
 	{
 		CriticalSection::Scope lock(cs);
-		{
-			bp.m_pendingThread.tid = GetCurrentThreadId();
-			bp.m_pendingThread.enable = true;
-			SetEvent(bp.m_workerSignal);
-			WaitForSingleObject(bp.m_workerDone, INFINITE);
-		}
+		
+		bp.m_pendingThread.tid = GetCurrentThreadId();
+		bp.m_pendingThread.enable = true;
+		SetEvent(bp.m_workerSignal);
+		WaitForSingleObject(bp.m_workerDone, INFINITE);
 	}
 }
 
@@ -310,25 +309,25 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 		if (!GetThreadContext(hThread, &cxt))
 			break;
 
-	for (int index = 0; index < 4; ++index)
-	{
-		const bool isSet = m_address[index] != nullptr;
-		SetBits(cxt.Dr7, index*2, 1, isSet);
-
-		if (isSet)
+		for (int index = 0; index < 4; ++index)
 		{
-			switch (index)
-			{
-			case 0: cxt.Dr0 = (DWORD_PTR) m_address[index]; break;
-			case 1: cxt.Dr1 = (DWORD_PTR) m_address[index]; break;
-			case 2: cxt.Dr2 = (DWORD_PTR) m_address[index]; break;
-			case 3: cxt.Dr3 = (DWORD_PTR) m_address[index]; break;
-			}
+			const bool isSet = m_address[index] != nullptr;
+			SetBits(cxt.Dr7, index*2, 1, isSet);
 
-			SetBits(cxt.Dr7, 16 + (index*4), 2, m_when[index]);
-			SetBits(cxt.Dr7, 18 + (index*4), 2, m_len[index]);
+			if (isSet)
+			{
+				switch (index)
+				{
+				case 0: cxt.Dr0 = (DWORD_PTR) m_address[index]; break;
+				case 1: cxt.Dr1 = (DWORD_PTR) m_address[index]; break;
+				case 2: cxt.Dr2 = (DWORD_PTR) m_address[index]; break;
+				case 3: cxt.Dr3 = (DWORD_PTR) m_address[index]; break;
+				}
+
+				SetBits(cxt.Dr7, 16 + (index*4), 2, m_when[index]);
+				SetBits(cxt.Dr7, 18 + (index*4), 2, m_len[index]);
+			}
 		}
-	}
 
 		if (!SetThreadContext(hThread, &cxt))
 			break;
