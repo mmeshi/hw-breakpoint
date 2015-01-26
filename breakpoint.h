@@ -1,35 +1,12 @@
 #pragma once
 #include <windows.h>
 
-class CriticalSection
-{
-public:
-	CriticalSection() { InitializeCriticalSection(&m_cs); }
-	~CriticalSection() { DeleteCriticalSection(&m_cs); }
-
-	void Enter() { EnterCriticalSection(&m_cs); }
-	void Leave() { LeaveCriticalSection(&m_cs); }
-
-	class Scope
-	{
-	public:
-		Scope(CriticalSection& cs) : _cs(cs) { _cs.Enter(); }
-		~Scope() { _cs.Leave(); }
-	private:
-		CriticalSection& _cs;
-	};
-
-private:
-	CRITICAL_SECTION m_cs;
-};
-
-
 class HWBreakpoint
 {
 public:
 	// The enum values correspond to the values used by the Intel Pentium,
 	// so don't change them!
-	enum Condition { Write = 1, Read /* or write! */ = 3 };
+	enum Condition { Write = 1, ReadWrite = 3 };
 
 	static bool Set(void* address, int len /* 1, 2, or 4 */, Condition when);
 	static bool Clear(void* address);
@@ -66,7 +43,6 @@ private:
 	int m_len[4];
 	Condition m_when[4];
 	
-	CriticalSection m_cs;
 	HANDLE m_workerThread;
 	HANDLE m_workerSignal;
 	HANDLE m_workerDone;

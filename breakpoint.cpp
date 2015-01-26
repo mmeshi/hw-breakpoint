@@ -4,6 +4,29 @@
 #include <algorithm>
 #include <iostream>
 
+class CriticalSection
+{
+public:
+	CriticalSection() { InitializeCriticalSection(&m_cs); }
+	~CriticalSection() { DeleteCriticalSection(&m_cs); }
+
+	void Enter() { EnterCriticalSection(&m_cs); }
+	void Leave() { LeaveCriticalSection(&m_cs); }
+
+	class Scope
+	{
+	public:
+		Scope(CriticalSection& cs) : _cs(cs) { _cs.Enter(); }
+		~Scope() { _cs.Leave(); }
+	private:
+		CriticalSection& _cs;
+	};
+
+private:
+	CRITICAL_SECTION m_cs;
+} cs;
+
+
 HWBreakpoint::HWBreakpoint()
 {
 	ZeroMemory(m_address, sizeof(m_address));
@@ -21,7 +44,7 @@ HWBreakpoint::HWBreakpoint()
 
 HWBreakpoint::~HWBreakpoint()
 {
-	CriticalSection::Scope lock(m_cs);
+	CriticalSection::Scope lock(cs);
 	{
 		ZeroMemory(m_address, sizeof(m_address));
 		SetForThreads();
@@ -42,7 +65,7 @@ bool HWBreakpoint::Set(void* address, int len, Condition when)
 {
 	HWBreakpoint& bp = GetInstance();
 	{
-		CriticalSection::Scope lock(bp.m_cs);
+		CriticalSection::Scope lock(cs);
 		for (int index = 0; index < 4; ++index)
 			if (bp.m_address[index] == nullptr)
 			{
@@ -63,7 +86,7 @@ bool HWBreakpoint::Clear(void* address)
 {
 	HWBreakpoint& bp = GetInstance();
 	{
-		CriticalSection::Scope lock(bp.m_cs);
+		CriticalSection::Scope lock(cs);
 		for (int index = 0; index < 4; ++index)
 			if (bp.m_address[index] == address)
 			{
@@ -82,7 +105,7 @@ void HWBreakpoint::ToggleThread(DWORD tid, bool enableBP)
 {
 	HWBreakpoint& bp = GetInstance();
 	{
-		CriticalSection::Scope lock(bp.m_cs);
+		CriticalSection::Scope lock(cs);
 		bp.m_pendingThread.tid = tid;
 		bp.m_pendingThread.enable = enableBP;
 		SetEvent(bp.m_workerSignal);
@@ -219,7 +242,7 @@ void HWBreakpoint::ThreadDeutor()
 {
 	HWBreakpoint& bp = GetInstance();
 	{
-		CriticalSection::Scope lock(bp.m_cs);
+		CriticalSection::Scope lock(cs);
 		{
 			bp.m_pendingThread.tid = GetCurrentThreadId();
 			bp.m_pendingThread.enable = true;
@@ -250,7 +273,7 @@ void HWBreakpoint::SetForThreads()
 	{ 
 		if(te32.th32OwnerProcessID == pid)
 		{
-			CriticalSection::Scope lock(m_cs);
+			CriticalSection::Scope lock(cs);
 			{
 				m_pendingThread.tid = te32.th32ThreadID;
 				m_pendingThread.enable = true;
