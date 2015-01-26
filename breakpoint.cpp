@@ -34,7 +34,7 @@ HWBreakpoint::HWBreakpoint()
 
 	BuildTrampoline();
 	if (!m_trampoline)
-		std::cout << "error: failed to build hook function" << std::endl;
+		std::cout << "[HWBreakpoint] error: failed to build hook function" << std::endl;
 
 	m_workerSignal = CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_workerDone = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -331,7 +331,7 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 		if (ResumeThread(hThread) == -1)
 			break;
 
-	std::cout << "Set BP for Thread: " << tid << std::endl;
+		std::cout << "[HWBreakpoint] Set BP for Thread: " << tid << std::endl;
 
 	} while (false);
 
