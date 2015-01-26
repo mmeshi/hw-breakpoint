@@ -278,12 +278,11 @@ void HWBreakpoint::SetForThreads()
 		if(te32.th32OwnerProcessID == pid)
 		{
 			CriticalSection::Scope lock(cs);
-			{
-				m_pendingThread.tid = te32.th32ThreadID;
-				m_pendingThread.enable = true;
-				SetEvent(m_workerSignal);
-				WaitForSingleObject(m_workerDone, INFINITE);
-			}
+			
+			m_pendingThread.tid = te32.th32ThreadID;
+			m_pendingThread.enable = true;
+			SetEvent(m_workerSignal);
+			WaitForSingleObject(m_workerDone, INFINITE);
 		}
 	} while(Thread32Next(hThreadSnap, &te32));
 }
