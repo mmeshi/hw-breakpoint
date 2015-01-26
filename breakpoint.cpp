@@ -44,8 +44,8 @@ HWBreakpoint::HWBreakpoint()
 
 HWBreakpoint::~HWBreakpoint()
 {
-	CriticalSection::Scope lock(cs);
 	{
+		CriticalSection::Scope lock(cs);
 		ZeroMemory(m_address, sizeof(m_address));
 		SetForThreads();
 	}
