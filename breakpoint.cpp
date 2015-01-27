@@ -346,7 +346,7 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 		if (ResumeThread(hThread) == -1)
 			break;
 
-		std::cout << "[HWBreakpoint] Set BP for thread: " << std::hex << tid << std::endl;
+		std::cout << "[HWBreakpoint] Set/Reset BP for thread: " << std::hex << tid << std::endl;
 
 	} while (false);
 
