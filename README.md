@@ -14,10 +14,10 @@ set hardware breakpoints programmaticaly - for windows x86/x64
 SomeType val;
 
 // to set write breakpoint
-HWBreakpoint::Set(&val, sizeof(SomeType), HWBreakpoint::Write);
+HWBreakpoint::Set(&val, sizeof(SomeType*), HWBreakpoint::Write);
 
 // to set read and write breakpoint
-HWBreakpoint::Set(&val, sizeof(SomeType), HWBreakpoint::ReadWrite);
+HWBreakpoint::Set(&val, sizeof(SomeType*), HWBreakpoint::ReadWrite);
 
 // to clear the breakpoint
 HWBreakpoint::Clear(&val);
