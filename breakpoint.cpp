@@ -77,15 +77,17 @@ bool HWBreakpoint::Set(void* address, int len, Condition when)
 		// find avalible place
 		for (int i = 0; index < 0 && i < 4; ++i)
 			if (bp.m_address[i] == nullptr)
+			{
 				index = i;
+				if (bp.m_countActive++ == 0)
+					bp.ToggleThreadHook(true);
+			}
 
 		if (index >= 0)
 		{
 			bp.m_address[index] = address;
 			bp.m_len[index] = len;
 			bp.m_when[index] = when;
-			if (bp.m_countActive++ == 0)
-				bp.ToggleThreadHook(true);
 			bp.SetForThreads();
 			return true;
 		}
