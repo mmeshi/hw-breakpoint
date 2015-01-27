@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <functional>
 #include <iostream>
 #include "..\breakpoint.h"
 
@@ -20,23 +21,66 @@ std::ostream& operator<<(std::ostream& os, ConsoleColor color)
 int g_val = 0;
 HANDLE g_hEvent1, g_hEvent2;
 
-void tryWrite()
+enum TestType
 {
-	std::cout << White << "thread " << std::hex << ::GetCurrentThreadId() << " trying to write...";
+	Write,
+	Read
+};
 
-	__try 
-    	{
-		g_val = 1;
-		std::cout << "\tmissed writes " << Red << "[failed]" << White << "\n\n" << std::flush;
+auto defTryWriteFunc = []() { std::cout << "\tmissed writes " << Red << "[failed]" << White << std::endl; };
+auto defExceptWriteFunc = []() { std::cout << "\tcatch write attempt " << Green << "[ok]" << White << std::endl; };
+auto defTryReadFunc = []() { std::cout << "\tmissed read " << Red << "[failed]" << White << std::endl; };
+auto defExceptReadFunc = []() { std::cout << "\tcatch read attempt " << Green << "[ok]" << White << std::endl; };
+
+void tryTest(TestType testType, std::function<void()>& tryFunc, std::function<void()>& exceptFunc)
+{
+	__try
+	{
+		switch (testType)
+		{
+		case Write:
+			std::cout << White << "thread " << std::hex << ::GetCurrentThreadId() << " trying to write...";
+			g_val = 1;
+			break;
+		case Read:
+			std::cout << White << "thread " << std::hex << ::GetCurrentThreadId() << " trying to read...";
+			volatile int read = g_val;
+			break;
+		}
+		tryFunc();
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
-		std::cout << "\tcatch write attempt " << Green << "[ok]" << White << "\n\n" << std::flush;
+		exceptFunc();
 	}
 }
 
+void test(TestType testType, std::function<void()> tryFunc = std::function<void()>(), std::function<void()> exceptFunc = std::function<void()>())
+{
+	if (!tryFunc)
+	{
+		switch (testType)
+		{
+		case Write: tryFunc = defTryWriteFunc; break;
+		case Read: tryFunc = defTryReadFunc; break;
+		default: return;
+		}
+	}
 
-DWORD WINAPI ThreadWriteFunc()
+	if (!exceptFunc)
+	{
+		switch (testType)
+		{
+		case Write: exceptFunc = defExceptWriteFunc; break;
+		case Read: exceptFunc = defExceptReadFunc; break;
+		default: return;
+		}
+	}
+
+	tryTest(testType, tryFunc, exceptFunc);
+};
+
+DWORD WINAPI ThreadWriteFunc(TestType param)
 {
     	// inform main thread to set breakpoint
 	::SetEvent(g_hEvent2);
@@ -44,13 +88,39 @@ DWORD WINAPI ThreadWriteFunc()
     	// wait for main thread to finish setting the BP
 	::WaitForSingleObject(g_hEvent1, INFINITE);
 
-	tryWrite();
+	test(param);
 
 	return 0;
 }
 
 int main()
 {
+	// test write
+	std::cout << "\n\ntest 1: testing write only BP";
+	std::cout << "\n=============================\n";
+	HWBreakpoint::Set(&g_val, sizeof(int), HWBreakpoint::Write);
+	test(TestType::Write);
+	test(TestType::Read, 
+		[]() { std::cout << "\tmissed read " << Green << "[ok]" << White << std::endl; },
+		[]() { std::cout << "\tcatch read attempt " << Red << "[failed]" << White << std::endl; 
+	});
+
+	// test read & write
+	std::cout << "\n\ntest 2: testing read & write BP";
+	std::cout << "\n===============================\n";
+	HWBreakpoint::Set(&g_val, sizeof(int), HWBreakpoint::ReadWrite);
+	test(TestType::Write);
+	test(TestType::Read);
+
+	// test clear
+	std::cout << "\n\ntest 3: clearing BP";
+	std::cout << "\n===================\n";
+	HWBreakpoint::Clear(&g_val);
+	test(TestType::Write, 
+		[]() { std::cout << "\tmissed write " << Green << "[ok]" << White << std::endl;}, 
+		[]() { std::cout << "\tcatch write attempt " << Red << "[failed]" << White << std::endl; 
+	});
+
 	HANDLE hTrd;
 	DWORD threadId;
 
@@ -58,9 +128,9 @@ int main()
 	g_hEvent2 = ::CreateEvent(NULL, TRUE, FALSE, NULL);
 
     	// multi-thread testing:
-	std::cout << "\n\ntest 1: existing thread before the BP has setting";
+	std::cout << "\n\ntest 4: existing thread before the BP has setting";
 	std::cout <<   "\n=================================================" << std::endl;
-	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, NULL, 0, &threadId);
+	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, (LPVOID)TestType::Write, 0, &threadId);
 	
     	// wait for new thread creation
     	::WaitForSingleObject(g_hEvent2, INFINITE);
@@ -82,9 +152,9 @@ int main()
 	::ResetEvent(g_hEvent1);
 	::ResetEvent(g_hEvent2);
 
-	std::cout << "\n\ntest 2: new thread after setting the BP";
+	std::cout << "\n\ntest 3: new thread after setting the BP";
 	std::cout <<   "\n=======================================" << std::endl;
-	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, NULL, 0, &threadId);
+	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, (LPVOID)TestType::Write, 0, &threadId);
 
     	// wait for new thread creation
 	::WaitForSingleObject(g_hEvent2, INFINITE);
