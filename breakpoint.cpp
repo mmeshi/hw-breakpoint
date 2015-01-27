@@ -66,17 +66,29 @@ bool HWBreakpoint::Set(void* address, int len, Condition when)
 	HWBreakpoint& bp = GetInstance();
 	{
 		CriticalSection::Scope lock(cs);
-		for (int index = 0; index < 4; ++index)
-			if (bp.m_address[index] == nullptr)
-			{
-				bp.m_address[index] = address;
-				bp.m_len[index] = len;
-				bp.m_when[index] = when;
-				if (bp.m_countActive++ == 0)
-					bp.ToggleThreadHook(true);
-				bp.SetForThreads();
-				return true;
-			}
+		
+		int index = -1;
+
+		// search for this address
+		for (int i = 0; i < 4; ++i)
+			if (bp.m_address[i] == address)
+				index = i;
+
+		// find avalible place
+		for (int i = 0; index < 0 && i < 4; ++i)
+			if (bp.m_address[i] == nullptr)
+				index = i;
+
+		if (index >= 0)
+		{
+			bp.m_address[index] = address;
+			bp.m_len[index] = len;
+			bp.m_when[index] = when;
+			if (bp.m_countActive++ == 0)
+				bp.ToggleThreadHook(true);
+			bp.SetForThreads();
+			return true;
+		}
 	}
 
 	return false;
@@ -334,7 +346,7 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 		if (ResumeThread(hThread) == -1)
 			break;
 
-		std::cout << "[HWBreakpoint] Set BP for Thread: " << tid << std::endl;
+		std::cout << "[HWBreakpoint] Set BP for thread: " << std::hex << tid << std::endl;
 
 	} while (false);
 
