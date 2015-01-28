@@ -152,7 +152,7 @@ int main()
 	::ResetEvent(g_hEvent1);
 	::ResetEvent(g_hEvent2);
 
-	std::cout << "\n\ntest 3: new thread after setting the BP";
+	std::cout << "\n\ntest 5: new thread after setting the BP";
 	std::cout <<   "\n=======================================" << std::endl;
 	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, (LPVOID)TestType::Write, 0, &threadId);
 
