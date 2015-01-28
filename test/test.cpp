@@ -82,10 +82,10 @@ void test(TestType testType, std::function<void()> tryFunc = std::function<void(
 
 DWORD WINAPI ThreadWriteFunc(TestType param)
 {
-    	// inform main thread to set breakpoint
+    	// inform main thread that this thread was created 
 	::SetEvent(g_hEvent2);
 
-    	// wait for main thread to finish setting the BP
+    	// wait for main thread signal to continue execution
 	::WaitForSingleObject(g_hEvent1, INFINITE);
 
 	test(param);
