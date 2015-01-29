@@ -80,7 +80,7 @@ void test(TestType testType, std::function<void()> tryFunc = std::function<void(
 	tryTest(testType, tryFunc, exceptFunc);
 };
 
-DWORD WINAPI ThreadWriteFunc(TestType param)
+DWORD WINAPI ThreadFunc(TestType param)
 {
     	// inform main thread that this thread was created 
 	::SetEvent(g_hEvent2);
@@ -121,16 +121,16 @@ int main()
 		[]() { std::cout << "\tcatch write attempt " << Red << "[failed]" << White << std::endl; 
 	});
 
+		// multi-thread testing:
 	HANDLE hTrd;
 	DWORD threadId;
 
 	g_hEvent1 = ::CreateEvent(NULL, TRUE, FALSE, NULL);
 	g_hEvent2 = ::CreateEvent(NULL, TRUE, FALSE, NULL);
 
-    	// multi-thread testing:
 	std::cout << "\n\ntest 4: existing thread before the BP has setting";
 	std::cout <<   "\n=================================================" << std::endl;
-	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, (LPVOID)TestType::Write, 0, &threadId);
+	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadFunc, (LPVOID)TestType::Write, 0, &threadId);
 	
     	// wait for new thread creation
     	::WaitForSingleObject(g_hEvent2, INFINITE);
@@ -154,7 +154,7 @@ int main()
 
 	std::cout << "\n\ntest 5: new thread after setting the BP";
 	std::cout <<   "\n=======================================" << std::endl;
-	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadWriteFunc, (LPVOID)TestType::Write, 0, &threadId);
+	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadFunc, (LPVOID)TestType::Write, 0, &threadId);
 
     	// wait for new thread creation
 	::WaitForSingleObject(g_hEvent2, INFINITE);
@@ -168,6 +168,8 @@ int main()
     	// wait for thread completion
 	::WaitForSingleObject(hTrd, INFINITE);
 	::CloseHandle(hTrd);
+	::CloseHandle(g_hEvent1);
+	::CloseHandle(g_hEvent2);
 
     	// reset the BP
 	HWBreakpoint::Clear(&g_val);
