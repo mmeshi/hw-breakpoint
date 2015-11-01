@@ -1,5 +1,6 @@
 #pragma once
 #include <windows.h>
+#include <thread>
 
 class HWBreakpoint
 {
@@ -29,7 +30,7 @@ private:
 	void SetForThreads();
 	void SetThread(DWORD tid, bool enableBP);
 
-	static DWORD WINAPI WorkerThreadProc(LPVOID lpParameter);
+	void WorkerThreadProc();
 
 	inline void SetBits(ULONG_PTR& dw, int lowBit, int bits, int newValue)
 	{
@@ -43,7 +44,7 @@ private:
 	int m_len[4];
 	Condition m_when[4];
 	
-	HANDLE m_workerThread;
+	std::thread m_workerThread;
 	HANDLE m_workerSignal;
 	HANDLE m_workerDone;
 	

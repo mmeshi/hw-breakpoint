@@ -38,7 +38,7 @@ HWBreakpoint::HWBreakpoint()
 
 	m_workerSignal = CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_workerDone = CreateEvent(NULL, FALSE, FALSE, NULL);
-	m_workerThread = CreateThread(NULL, 0, WorkerThreadProc, this, 0, NULL);
+	m_workerThread = std::thread([this]{ WorkerThreadProc(); });
 	WaitForSingleObject(m_workerDone, INFINITE);
 }
 
@@ -52,10 +52,11 @@ HWBreakpoint::~HWBreakpoint()
 
 	m_pendingThread.tid = -1;
 	SetEvent(m_workerSignal);
-	WaitForSingleObject(m_workerThread, INFINITE);
+	m_workerThread.join();
+
 	CloseHandle(m_workerDone);
 	CloseHandle(m_workerSignal);
-	CloseHandle(m_workerThread);
+
 
 	if (m_trampoline)
 		VirtualFree(m_trampoline, 0, MEM_RELEASE);
@@ -355,21 +356,17 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 	CloseHandle(hThread);
 }
 
-DWORD HWBreakpoint::WorkerThreadProc(LPVOID lpParameter)
+void HWBreakpoint::WorkerThreadProc()
 {
-	HWBreakpoint& bp = *(HWBreakpoint*)lpParameter;
-
-	SetEvent(bp.m_workerDone);
-
-	while (WaitForSingleObject(bp.m_workerSignal, INFINITE) == WAIT_OBJECT_0)
+	SetEvent(m_workerDone);
+	
+	while (WaitForSingleObject(m_workerSignal, INFINITE) == WAIT_OBJECT_0)
 	{
 		// signal for abort
-		if (bp.m_pendingThread.tid == -1)
-			return 0;
+		if (m_pendingThread.tid == -1)
+			return;
 
-		bp.SetThread(bp.m_pendingThread.tid, bp.m_pendingThread.enable);
-		SetEvent(bp.m_workerDone);
+		SetThread(m_pendingThread.tid, m_pendingThread.enable);
+		SetEvent(m_workerDone);
 	}
-
-	return 0;
 }
