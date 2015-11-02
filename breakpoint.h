@@ -1,6 +1,9 @@
 #pragma once
 #include <windows.h>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 
 class HWBreakpoint
 {
@@ -11,7 +14,6 @@ public:
 
 	static bool Set(void* address, int len /* 1, 2, or 4 */, Condition when);
 	static bool Clear(void* address);
-	static void ToggleThread(DWORD tid, bool enableBP);
 
 private:
 
@@ -45,8 +47,9 @@ private:
 	Condition m_when[4];
 	
 	std::thread m_workerThread;
-	HANDLE m_workerSignal;
-	HANDLE m_workerDone;
+	std::mutex m_mutex;
+	std::condition_variable m_workerSignal;
+	std::atomic<bool> m_workerStop;
 	
 	struct PendingThread
 	{

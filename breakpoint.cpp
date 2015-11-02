@@ -36,10 +36,11 @@ HWBreakpoint::HWBreakpoint()
 	if (!m_trampoline)
 		std::cout << "[HWBreakpoint] error: failed to build hook function" << std::endl;
 
-	m_workerSignal = CreateEvent(NULL, FALSE, FALSE, NULL);
-	m_workerDone = CreateEvent(NULL, FALSE, FALSE, NULL);
+	m_workerStop = true;
 	m_workerThread = std::thread([this]{ WorkerThreadProc(); });
-	WaitForSingleObject(m_workerDone, INFINITE);
+
+	std::unique_lock<std::mutex> lock(m_mutex);
+	m_workerSignal.wait(lock, [this]{ return !m_workerStop; });
 }
 
 HWBreakpoint::~HWBreakpoint()
@@ -50,13 +51,9 @@ HWBreakpoint::~HWBreakpoint()
 		SetForThreads();
 	}
 
-	m_pendingThread.tid = -1;
-	SetEvent(m_workerSignal);
+	m_workerStop = true;
+	m_workerSignal.notify_one();
 	m_workerThread.join();
-
-	CloseHandle(m_workerDone);
-	CloseHandle(m_workerSignal);
-
 
 	if (m_trampoline)
 		VirtualFree(m_trampoline, 0, MEM_RELEASE);
@@ -114,18 +111,6 @@ bool HWBreakpoint::Clear(void* address)
 	}
 
 	return false;
-}
-
-void HWBreakpoint::ToggleThread(DWORD tid, bool enableBP)
-{
-	HWBreakpoint& bp = GetInstance();
-	{
-		CriticalSection::Scope lock(cs);
-		bp.m_pendingThread.tid = tid;
-		bp.m_pendingThread.enable = enableBP;
-		SetEvent(bp.m_workerSignal);
-		WaitForSingleObject(bp.m_workerDone, INFINITE);
-	}
 }
 
 void HWBreakpoint::BuildTrampoline()
@@ -262,12 +247,12 @@ void HWBreakpoint::ThreadDeutor()
 {
 	HWBreakpoint& bp = GetInstance();
 	{
-		CriticalSection::Scope lock(cs);
+		std::unique_lock<std::mutex> lock(bp.m_mutex);
 		
 		bp.m_pendingThread.tid = GetCurrentThreadId();
 		bp.m_pendingThread.enable = true;
-		SetEvent(bp.m_workerSignal);
-		WaitForSingleObject(bp.m_workerDone, INFINITE);
+		bp.m_workerSignal.notify_one();
+		bp.m_workerSignal.wait(lock, [&bp]{ return bp.m_pendingThread.tid == -1; });
 	}
 }
 
@@ -292,12 +277,12 @@ void HWBreakpoint::SetForThreads()
 	{ 
 		if(te32.th32OwnerProcessID == pid)
 		{
-			CriticalSection::Scope lock(cs);
+			std::unique_lock<std::mutex> lock(m_mutex);
 			
 			m_pendingThread.tid = te32.th32ThreadID;
 			m_pendingThread.enable = true;
-			SetEvent(m_workerSignal);
-			WaitForSingleObject(m_workerDone, INFINITE);
+			m_workerSignal.notify_one();	
+			m_workerSignal.wait(lock, [this]{ return m_pendingThread.tid == -1; });
 		}
 	} while(Thread32Next(hThreadSnap, &te32));
 }
@@ -358,15 +343,20 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 
 void HWBreakpoint::WorkerThreadProc()
 {
-	SetEvent(m_workerDone);
+	m_workerStop = false;
+	m_workerSignal.notify_one();
 	
-	while (WaitForSingleObject(m_workerSignal, INFINITE) == WAIT_OBJECT_0)
+	while (true)
 	{
-		// signal for abort
-		if (m_pendingThread.tid == -1)
+		std::unique_lock<std::mutex> lock(m_mutex);
+		m_workerSignal.wait(lock, [this] { return m_pendingThread.tid >= 0 || m_workerStop; });
+		if (m_workerStop)
 			return;
-
-		SetThread(m_pendingThread.tid, m_pendingThread.enable);
-		SetEvent(m_workerDone);
+		if (m_pendingThread.tid >= 0)
+		{
+			SetThread(m_pendingThread.tid, m_pendingThread.enable);
+			m_pendingThread.tid = -1;
+			m_workerSignal.notify_one();
+		}
 	}
 }
