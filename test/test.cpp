@@ -82,10 +82,10 @@ void test(TestType testType, std::function<void()> tryFunc = std::function<void(
 
 DWORD WINAPI ThreadFunc(TestType param)
 {
-    	// inform main thread that this thread was created 
+    // inform main thread that this thread was created 
 	::SetEvent(g_hEvent2);
 
-    	// wait for main thread signal to continue execution
+    // wait for main thread signal to continue execution
 	::WaitForSingleObject(g_hEvent1, INFINITE);
 
 	test(param);
@@ -93,16 +93,16 @@ DWORD WINAPI ThreadFunc(TestType param)
 	return 0;
 }
 
-int main()
+void runAllTests()
 {
 	// test write
 	std::cout << "\n\ntest 1: testing write only BP";
 	std::cout << "\n=============================\n";
 	HWBreakpoint::Set(&g_val, sizeof(int), HWBreakpoint::Write);
 	test(TestType::Write);
-	test(TestType::Read, 
+	test(TestType::Read,
 		[]() { std::cout << "\tmissed read " << Green << "[ok]" << White << std::endl; },
-		[]() { std::cout << "\tcatch read attempt " << Red << "[failed]" << White << std::endl; 
+		[]() { std::cout << "\tcatch read attempt " << Red << "[failed]" << White << std::endl;
 	});
 
 	// test read & write
@@ -116,12 +116,12 @@ int main()
 	std::cout << "\n\ntest 3: clearing BP";
 	std::cout << "\n===================\n";
 	HWBreakpoint::Clear(&g_val);
-	test(TestType::Write, 
-		[]() { std::cout << "\tmissed write " << Green << "[ok]" << White << std::endl;}, 
-		[]() { std::cout << "\tcatch write attempt " << Red << "[failed]" << White << std::endl; 
+	test(TestType::Write,
+		[]() { std::cout << "\tmissed write " << Green << "[ok]" << White << std::endl; },
+		[]() { std::cout << "\tcatch write attempt " << Red << "[failed]" << White << std::endl;
 	});
 
-		// multi-thread testing:
+	// multi-thread testing:
 	HANDLE hTrd;
 	DWORD threadId;
 
@@ -129,51 +129,56 @@ int main()
 	g_hEvent2 = ::CreateEvent(NULL, TRUE, FALSE, NULL);
 
 	std::cout << "\n\ntest 4: existing thread before the BP has setting";
-	std::cout <<   "\n=================================================" << std::endl;
+	std::cout << "\n=================================================" << std::endl;
 	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadFunc, (LPVOID)TestType::Write, 0, &threadId);
-	
-    	// wait for new thread creation
-    	::WaitForSingleObject(g_hEvent2, INFINITE);
 
-    	// print out the new thread id
+	// wait for new thread creation
+	::WaitForSingleObject(g_hEvent2, INFINITE);
+
+	// print out the new thread id
 	std::cout << "thread " << std::hex << threadId << " has created" << std::endl;
 
-    	// set the BP
+	// set the BP
 	HWBreakpoint::Set(&g_val, sizeof(int), HWBreakpoint::Write);
 
-    	// signal the thread to continue exection (try to write)
+	// signal the thread to continue exection (try to write)
 	::SetEvent(g_hEvent1);
 
-    	// wait for thread completion
+	// wait for thread completion
 	::WaitForSingleObject(hTrd, INFINITE);
 
-        // cleanup and reset events
+	// cleanup and reset events
 	::CloseHandle(hTrd);
 	::ResetEvent(g_hEvent1);
 	::ResetEvent(g_hEvent2);
 
 	std::cout << "\n\ntest 5: new thread after setting the BP";
-	std::cout <<   "\n=======================================" << std::endl;
+	std::cout << "\n=======================================" << std::endl;
 	hTrd = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadFunc, (LPVOID)TestType::Write, 0, &threadId);
 
-    	// wait for new thread creation
+	// wait for new thread creation
 	::WaitForSingleObject(g_hEvent2, INFINITE);
 
-    	// print out the new thread id
+	// print out the new thread id
 	std::cout << "thread " << std::hex << threadId << " has created" << std::endl;
 
-    	// signal the thread to continue execution
+	// signal the thread to continue execution
 	::SetEvent(g_hEvent1);
 
-    	// wait for thread completion
+	// wait for thread completion
 	::WaitForSingleObject(hTrd, INFINITE);
 	::CloseHandle(hTrd);
 	::CloseHandle(g_hEvent1);
 	::CloseHandle(g_hEvent2);
 
-    	// reset the BP
-	HWBreakpoint::Clear(&g_val);
+	// reset the BP
+	HWBreakpoint::CleanUp();
+}
 
-    	// wait for user input
+int main()
+{
+	runAllTests();
+
+    // wait for user input
 	std::cin.ignore();
 }

@@ -5,30 +5,8 @@
 #include <iostream>
 #include <limits>
 
-/*
-class CriticalSection
-{
-public:
-	CriticalSection() { InitializeCriticalSection(&m_cs); }
-	~CriticalSection() { DeleteCriticalSection(&m_cs); }
-
-	void Enter() { EnterCriticalSection(&m_cs); }
-	void Leave() { LeaveCriticalSection(&m_cs); }
-
-	class Scope
-	{
-	public:
-		Scope(CriticalSection& cs) : _cs(cs) { _cs.Enter(); }
-		~Scope() { _cs.Leave(); }
-	private:
-		CriticalSection& _cs;
-	};
-
-private:
-	CRITICAL_SECTION m_cs;
-} cs;
-*/
-
+std::unique_ptr<HWBreakpoint> HWBreakpoint::s_instance;
+std::mutex HWBreakpoint::s_instanceMutex;
 
 HWBreakpoint::HWBreakpoint()
 {
@@ -41,7 +19,7 @@ HWBreakpoint::HWBreakpoint()
 
 	m_pendingThread.tid = -1;
 	m_workerStop = true;
-	m_workerThread = std::thread(WorkerThreadProc);
+	m_workerThread = std::thread([this]{ WorkerThreadProc(); });
 
 	std::unique_lock<std::mutex> lock(m_mutex);
 	m_workerSignal.wait(lock, [this]{ return !m_workerStop; });
@@ -345,23 +323,21 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 
 void HWBreakpoint::WorkerThreadProc()
 {
-	HWBreakpoint& bp = GetInstance();
-
-	bp.m_workerStop = false;
-	bp.m_workerSignal.notify_one();
+	m_workerStop = false;
+	m_workerSignal.notify_one();
 	
 	while (true)
 	{
-		std::unique_lock<std::mutex> lock(bp.m_mutex);
-		bp.m_workerSignal.wait(lock, [&bp] { return bp.m_pendingThread.tid != -1 || bp.m_workerStop; });
-		if (bp.m_workerStop)
+		std::unique_lock<std::mutex> lock(m_mutex);
+		m_workerSignal.wait(lock, [this] { return m_pendingThread.tid != -1 || m_workerStop; });
+		if (m_workerStop)
 			return;
 
-		if (bp.m_pendingThread.tid != -1)
+		if (m_pendingThread.tid != -1)
 		{
-			bp.SetThread(bp.m_pendingThread.tid, bp.m_pendingThread.enable);
-			bp.m_pendingThread.tid = -1;
-			bp.m_workerSignal.notify_one();
+			SetThread(m_pendingThread.tid, m_pendingThread.enable);
+			m_pendingThread.tid = -1;
+			m_workerSignal.notify_one();
 		}
 	}
 }

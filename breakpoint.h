@@ -4,6 +4,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
+#include <memory>
 
 class HWBreakpoint
 {
@@ -14,17 +15,27 @@ public:
 
 	static bool Set(void* address, int len /* 1, 2, or 4 */, Condition when);
 	static bool Clear(void* address);
-
+	static void CleanUp()
+	{
+		GetInstance().ToggleThreadHook(false);
+		std::lock_guard<std::mutex> lock(s_instanceMutex);
+		s_instance.release();
+	}
+	~HWBreakpoint();
 private:
 
 	static HWBreakpoint& GetInstance()
 	{
-		static HWBreakpoint instance;
-		return instance;
+		std::lock_guard<std::mutex> lock(s_instanceMutex);
+		if (!s_instance)
+			s_instance.reset(new HWBreakpoint);
+		return *(s_instance.get());
 	}
 
 	HWBreakpoint();
-	~HWBreakpoint();
+
+	static std::unique_ptr<HWBreakpoint> s_instance;
+	static std::mutex s_instanceMutex;
 
 	void BuildTrampoline();
 	void ToggleThreadHook(bool set);
@@ -32,7 +43,7 @@ private:
 	void SetForThreads(std::unique_lock<std::mutex>& lock);
 	void SetThread(DWORD tid, bool enableBP);
 
-	static void WorkerThreadProc();
+	void WorkerThreadProc();
 
 	inline void SetBits(ULONG_PTR& dw, int lowBit, int bits, int newValue)
 	{
