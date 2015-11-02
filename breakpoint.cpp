@@ -3,7 +3,9 @@
 #include <tlhelp32.h>
 #include <algorithm>
 #include <iostream>
+#include <limits>
 
+/*
 class CriticalSection
 {
 public:
@@ -25,6 +27,7 @@ public:
 private:
 	CRITICAL_SECTION m_cs;
 } cs;
+*/
 
 
 HWBreakpoint::HWBreakpoint()
@@ -36,8 +39,9 @@ HWBreakpoint::HWBreakpoint()
 	if (!m_trampoline)
 		std::cout << "[HWBreakpoint] error: failed to build hook function" << std::endl;
 
+	m_pendingThread.tid = -1;
 	m_workerStop = true;
-	m_workerThread = std::thread([this]{ WorkerThreadProc(); });
+	m_workerThread = std::thread(WorkerThreadProc);
 
 	std::unique_lock<std::mutex> lock(m_mutex);
 	m_workerSignal.wait(lock, [this]{ return !m_workerStop; });
@@ -46,9 +50,9 @@ HWBreakpoint::HWBreakpoint()
 HWBreakpoint::~HWBreakpoint()
 {
 	{
-		CriticalSection::Scope lock(cs);
+		std::unique_lock<std::mutex> lock(m_mutex);
 		ZeroMemory(m_address, sizeof(m_address));
-		SetForThreads();
+		SetForThreads(lock);
 	}
 
 	m_workerStop = true;
@@ -63,7 +67,7 @@ bool HWBreakpoint::Set(void* address, int len, Condition when)
 {
 	HWBreakpoint& bp = GetInstance();
 	{
-		CriticalSection::Scope lock(cs);
+		std::unique_lock<std::mutex> lock(bp.m_mutex);
 		
 		int index = -1;
 
@@ -86,7 +90,7 @@ bool HWBreakpoint::Set(void* address, int len, Condition when)
 			bp.m_address[index] = address;
 			bp.m_len[index] = len;
 			bp.m_when[index] = when;
-			bp.SetForThreads();
+			bp.SetForThreads(lock);
 			return true;
 		}
 	}
@@ -98,14 +102,14 @@ bool HWBreakpoint::Clear(void* address)
 {
 	HWBreakpoint& bp = GetInstance();
 	{
-		CriticalSection::Scope lock(cs);
+		std::unique_lock<std::mutex> lock(bp.m_mutex);
 		for (int index = 0; index < 4; ++index)
 			if (bp.m_address[index] == address)
 			{
 				bp.m_address[index] = nullptr;
 				if (--bp.m_countActive == 0)
 					bp.ToggleThreadHook(false);
-				bp.SetForThreads();
+				bp.SetForThreads(lock);
 				return true;
 			}
 	}
@@ -256,7 +260,7 @@ void HWBreakpoint::ThreadDeutor()
 	}
 }
 
-void HWBreakpoint::SetForThreads()
+void HWBreakpoint::SetForThreads(std::unique_lock<std::mutex>& lock)
 {
 	const DWORD pid = GetCurrentProcessId();
 
@@ -277,12 +281,10 @@ void HWBreakpoint::SetForThreads()
 	{ 
 		if(te32.th32OwnerProcessID == pid)
 		{
-			std::unique_lock<std::mutex> lock(m_mutex);
-			
 			m_pendingThread.tid = te32.th32ThreadID;
 			m_pendingThread.enable = true;
 			m_workerSignal.notify_one();	
-			m_workerSignal.wait(lock, [this]{ return m_pendingThread.tid == -1; });
+			m_workerSignal.wait(lock, [this] { return m_pendingThread.tid == -1; });
 		}
 	} while(Thread32Next(hThreadSnap, &te32));
 }
@@ -343,20 +345,23 @@ void HWBreakpoint::SetThread(DWORD tid, bool enableBP)
 
 void HWBreakpoint::WorkerThreadProc()
 {
-	m_workerStop = false;
-	m_workerSignal.notify_one();
+	HWBreakpoint& bp = GetInstance();
+
+	bp.m_workerStop = false;
+	bp.m_workerSignal.notify_one();
 	
 	while (true)
 	{
-		std::unique_lock<std::mutex> lock(m_mutex);
-		m_workerSignal.wait(lock, [this] { return m_pendingThread.tid >= 0 || m_workerStop; });
-		if (m_workerStop)
+		std::unique_lock<std::mutex> lock(bp.m_mutex);
+		bp.m_workerSignal.wait(lock, [&bp] { return bp.m_pendingThread.tid != -1 || bp.m_workerStop; });
+		if (bp.m_workerStop)
 			return;
-		if (m_pendingThread.tid >= 0)
+
+		if (bp.m_pendingThread.tid != -1)
 		{
-			SetThread(m_pendingThread.tid, m_pendingThread.enable);
-			m_pendingThread.tid = -1;
-			m_workerSignal.notify_one();
+			bp.SetThread(bp.m_pendingThread.tid, bp.m_pendingThread.enable);
+			bp.m_pendingThread.tid = -1;
+			bp.m_workerSignal.notify_one();
 		}
 	}
 }

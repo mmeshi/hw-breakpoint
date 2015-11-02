@@ -29,10 +29,10 @@ private:
 	void BuildTrampoline();
 	void ToggleThreadHook(bool set);
 	static void ThreadDeutor();
-	void SetForThreads();
+	void SetForThreads(std::unique_lock<std::mutex>& lock);
 	void SetThread(DWORD tid, bool enableBP);
 
-	void WorkerThreadProc();
+	static void WorkerThreadProc();
 
 	inline void SetBits(ULONG_PTR& dw, int lowBit, int bits, int newValue)
 	{
