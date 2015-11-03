@@ -98,7 +98,7 @@ void runAllTests()
 	// test write
 	std::cout << "\n\ntest 1: testing write only BP";
 	std::cout << "\n=============================\n";
-	HWBreakpoint::Set(&g_val, sizeof(int), HWBreakpoint::Write);
+	HWBreakpoint::Set(&g_val, HWBreakpoint::Condition::Write);
 	test(TestType::Write);
 	test(TestType::Read,
 		[]() { std::cout << "\tmissed read " << Green << "[ok]" << White << std::endl; },
@@ -108,7 +108,7 @@ void runAllTests()
 	// test read & write
 	std::cout << "\n\ntest 2: testing read & write BP";
 	std::cout << "\n===============================\n";
-	HWBreakpoint::Set(&g_val, sizeof(int), HWBreakpoint::ReadWrite);
+	HWBreakpoint::Set(&g_val, HWBreakpoint::Condition::ReadWrite);
 	test(TestType::Write);
 	test(TestType::Read);
 
@@ -139,7 +139,7 @@ void runAllTests()
 	std::cout << "thread " << std::hex << threadId << " has created" << std::endl;
 
 	// set the BP
-	HWBreakpoint::Set(&g_val, sizeof(int), HWBreakpoint::Write);
+	HWBreakpoint::Set(&g_val, HWBreakpoint::Condition::Write);
 
 	// signal the thread to continue exection (try to write)
 	::SetEvent(g_hEvent1);
@@ -171,8 +171,7 @@ void runAllTests()
 	::CloseHandle(g_hEvent1);
 	::CloseHandle(g_hEvent2);
 
-	// reset the BP
-	HWBreakpoint::CleanUp();
+	HWBreakpoint::ClearAll();
 }
 
 int main()
