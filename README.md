@@ -1,12 +1,12 @@
 # hw-breakpoint
 set hardware breakpoints programmaticaly - for windows x86/x64
 
-##Features
+## Features
 
 * Works both on x86 and x64
 * Multithreaded: ability to break every existed thread (at BP registration time), and future thread
 
-##Usage
+## Usage
 ```c++
 #include "breakpoint.h"
 
@@ -25,5 +25,5 @@ HWBreakpoint::Clear(&val);
 // to cleanup all breakpoint
 HWBreakpoint::ClearAll();
 ```
-##Credit
+## Credit
 The accessing debug register code is based on https://github.com/mmorearty/hardware-breakpoints
